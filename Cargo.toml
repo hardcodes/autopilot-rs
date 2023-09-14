@@ -38,3 +38,8 @@ x11 = "2.18.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.4", features = ["libloaderapi", "minwindef", "winbase", "winuser"] }
+
+[features]
+default = ["keyboard-us"]
+keyboard-us = []
+keyboard-de = []

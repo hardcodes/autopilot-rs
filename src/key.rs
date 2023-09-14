@@ -32,6 +32,7 @@ pub enum Flag {
     Shift,
     Control,
     Alt,
+    AltGr,
     Meta,
 
     // Special key identifiers.
@@ -73,6 +74,7 @@ pub enum KeyCode {
     UpArrow,
     PageUp,
     Alt,
+    AltGr,
     Return,
     PageDown,
     Delete,
@@ -256,13 +258,35 @@ fn flags_for_char<'a>(_character: char) -> &'a [Flag] {
 
 #[cfg(target_os = "linux")]
 fn flags_for_char<'a>(character: char) -> &'a [Flag] {
+    // using the keyboard features can get messy, at some point it should be
+    // extracted to a module
+    #[cfg(all(feature = "keyboard-us", feature = "keyboard-de"))]
+    compile_error!(
+        "feature \"keyboard-us\" and feature \"keyboard-de\" cannot be enabled at the same time"
+    );
+    #[cfg(feature = "keyboard-us")]
     const UPPERCASE_CHARACTERS: &[char] = &[
         '!', '#', '$', '%', '&', '(', ')', '*', '+', ':', '<', '>', '?', '@', '{', '|', '}', '~',
         '_', '^', '"',
     ];
+    // do not know about the us keyboard
+    #[cfg(feature = "keyboard-us")]
+    const ALTGR_CHARACTERS: &[char] = &[];
+    #[cfg(feature = "keyboard-de")]
+    const UPPERCASE_CHARACTERS: &[char] = &[
+        '!', '"', '§', '$', '%', '&', '/', '(', ')', '=', '?', '`', '*', '\'', ';', ':', '_', '>',
+        '°', '_', '^', '"',
+    ];
+    #[cfg(feature = "keyboard-de")]
+    const ALTGR_CHARACTERS: &[char] = &['{', '[', ']', '}', '\u{005C}', '@', '|', '~', '³', '²'];
+
     if character.is_uppercase() || UPPERCASE_CHARACTERS.contains(&character) {
         &[Flag::Shift]
-    } else {
+    } else if ALTGR_CHARACTERS.contains(&character) {
+        // let's hope that we do not need Shift and AltGr at the same time
+        &[Flag::AltGr]
+    }
+    else{
         &[]
     }
 }
@@ -535,10 +559,10 @@ fn system_toggle<T: KeyCodeConvertible>(
     flags: &[Flag],
     modifier_delay_ms: u64,
 ) {
-    use winapi::um::winuser::{
-        SendInput, INPUT, INPUT_u, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE,
-    };
     use std::mem::size_of;
+    use winapi::um::winuser::{
+        INPUT_u, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE,
+    };
 
     for &flag in flags.iter() {
         win_send_key_event(WinKeyCode::from(flag), down, modifier_delay_ms);
@@ -581,6 +605,7 @@ impl From<Flag> for XKeyCode {
             Flag::Shift => x11::keysym::XK_Shift_L,
             Flag::Control => x11::keysym::XK_Control_L,
             Flag::Alt => x11::keysym::XK_Alt_L,
+            Flag::AltGr => x11::keysym::XK_Alt_R,
             Flag::Meta => x11::keysym::XK_Meta_L,
             Flag::Help => x11::keysym::XK_Help,
         };
@@ -624,6 +649,7 @@ impl From<KeyCode> for XKeyCode {
             KeyCode::UpArrow => x11::keysym::XK_Up,
             KeyCode::PageUp => x11::keysym::XK_Page_Up,
             KeyCode::Alt => x11::keysym::XK_Alt_L,
+            KeyCode::AltGr => x11::keysym::XK_Alt_R,
             KeyCode::Return => x11::keysym::XK_Return,
             KeyCode::PageDown => x11::keysym::XK_Page_Down,
             KeyCode::Delete => x11::keysym::XK_Delete,
